@@ -1,4 +1,4 @@
-use std::{net::TcpListener, thread};
+use std::{io::Read, net::TcpListener, thread};
 
 use anyhow::Context;
 use sd_lib::ADDRESS;
@@ -10,7 +10,15 @@ fn main() {
 
     for stream in listener.incoming() {
         thread::spawn(move || {
-            let stream = stream.context("Connection failed!").unwrap();
+            let mut stream = stream.context("Connection failed!").unwrap();
+
+            let mut buf = String::new();
+            loop {
+                stream
+                    .read_to_string(&mut buf)
+                    .context("Failed to read from Stream.")
+                    .unwrap();
+            }
         });
     }
 }
