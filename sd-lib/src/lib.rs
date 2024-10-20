@@ -1,13 +1,25 @@
+use std::{io::Write, net::TcpStream};
+
 use anyhow::{Context, Result};
 use log::Level;
 
-pub const ADDRESS: &'static str = "127.0.0.1:115100";
+pub const ADDRESS: &'static str = "127.0.0.1:1500";
 
 pub const MESSAGE_VERSION: u32 = 1;
 pub struct Message {
     version: u32,
     level: Level,
     message: String,
+}
+
+impl Message {
+    pub fn new(level: Level, message: String) -> Self {
+        Self {
+            version: MESSAGE_VERSION,
+            level,
+            message,
+        }
+    }
 }
 
 unsafe fn sketchy<A, B: Copy>(a: A) -> B {
@@ -46,7 +58,17 @@ pub mod error {
 }
 
 impl Message {
-    pub fn make_sendeable(&self) -> Vec<u8> {
+    pub fn send(&self, stream: &mut TcpStream) -> Result<()> {
+        stream
+            .write(vec!['M' as u8].as_slice())
+            .context("Failed send character 'M' to daemon.")?;
+        stream
+            .write(&self.make_sendeable())
+            .context("Failed to send message to daemon.")?;
+        Ok(())
+    }
+
+    fn make_sendeable(&self) -> Vec<u8> {
         format!("{}{}{}", self.version, self.level as u8, self.message)
             .as_bytes()
             .to_vec()
@@ -54,7 +76,7 @@ impl Message {
 
     pub fn from_sendeable(bytes: &[u8]) -> Result<Self> {
         let mut array = [0; 4];
-        array.copy_from_slice(bytes);
+        array.copy_from_slice(&bytes[..4]);
         let version = u32::from_le_bytes(array);
 
         match version {
