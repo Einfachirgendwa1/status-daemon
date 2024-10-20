@@ -1,6 +1,3 @@
-[package]
-name = "sd"
-version = "0.1.0"
-edition = "2021"
-
-[dependencies]
+[workspace]
+members = ["sd-daemon", "sd-client", "sd-api"]
+resolver = "2"
