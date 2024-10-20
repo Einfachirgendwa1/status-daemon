@@ -10,7 +10,7 @@ pub struct Message {
     message: String,
 }
 
-unsafe fn scetchy<A, B: Copy>(a: A) -> B {
+unsafe fn sketchy<A, B: Copy>(a: A) -> B {
     *(&a as *const A as *const B)
 }
 
@@ -68,7 +68,7 @@ impl Message {
         let mut level = [0; 4];
         level.copy_from_slice(&bytes[4..8]);
         let level = u32::from_le_bytes(level) as usize;
-        let level = unsafe { scetchy(level) };
+        let level = unsafe { sketchy(level) };
 
         let message = String::from_utf8_lossy(&bytes[8..]).to_string();
 
