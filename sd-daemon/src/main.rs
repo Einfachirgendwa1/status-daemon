@@ -1,16 +1,15 @@
 use std::{
-    io::Read,
-    net::TcpListener,
-    sync::{Arc, Mutex},
+    net::{Shutdown, TcpListener},
+    // sync::{Arc, Mutex},
     thread,
 };
 
 use anyhow::Context;
-use once_cell::sync::Lazy;
-use sd_lib::{Message, ADDRESS};
+// use once_cell::sync::Lazy;
+use sd_lib::{/* Message, */ Mode, Transmission, ADDRESS};
 
-static mut MESSAGES: Lazy<Arc<Mutex<Vec<Message>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
+// static mut MESSAGES: Lazy<Arc<Mutex<Vec<Message>>>> =
+//     Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 
 fn main() {
     let listener = TcpListener::bind(ADDRESS)
@@ -21,27 +20,15 @@ fn main() {
         thread::spawn(move || {
             let mut stream = stream.context("Connection failed!").unwrap();
 
-            let mut buf = Vec::new();
             loop {
-                stream
-                    .read_to_end(&mut buf)
-                    .context("Failed to read from stream.")
-                    .unwrap();
+                let transmission = Transmission::recieve(&mut stream).unwrap();
 
-                match buf[0] as char {
-                    'M' => {
-                        let binary = &buf[1..];
-                        println!("Recieved binary message: {binary:?}");
-
-                        let message = Message::from_sendeable(binary)
-                            .context("Invalid message read from stream.")
-                            .unwrap();
-
-                        unsafe { MESSAGES.lock().unwrap().push(message) }
-                        println!("Read message.");
-                    }
-                    _ => {
-                        todo!()
+                match transmission {
+                    Mode::Message(message) => println!("{message}"),
+                    Mode::Exit(exitcode) => {
+                        println!("Client will exit with code {exitcode}. Closing connection.");
+                        stream.shutdown(Shutdown::Both).unwrap();
+                        return;
                     }
                 }
             }

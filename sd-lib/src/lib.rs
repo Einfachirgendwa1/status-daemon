@@ -1,16 +1,103 @@
-use std::{io::Write, net::TcpStream};
+use std::{
+    fmt::Display,
+    io::{Read, Write},
+    net::TcpStream,
+};
 
 use anyhow::{Context, Result};
 use log::Level;
 
 pub const ADDRESS: &'static str = "127.0.0.1:1500";
 
+pub const TRANSMISSION_VERSION: u32 = 1;
+pub struct Transmission {
+    version: u32,
+    mode: Mode,
+}
+
+pub enum Mode {
+    Message(Message),
+    Exit(u8),
+}
+
+impl Transmission {
+    pub fn new(mode: Mode) -> Self {
+        Transmission {
+            version: TRANSMISSION_VERSION,
+            mode,
+        }
+    }
+
+    pub fn transmit(&self, stream: &mut TcpStream) -> Result<()> {
+        stream
+            .write(&self.version.to_le_bytes())
+            .context("Failed to send version number to daemon.")?;
+
+        let message = match self.mode {
+            Mode::Message(ref message) => {
+                let mut vec = vec!['M' as u8];
+                vec.extend_from_slice(message.make_sendeable().as_slice());
+                vec
+            }
+            Mode::Exit(code) => {
+                vec!['E' as u8, code]
+            }
+        };
+
+        stream.write(&message.len().to_le_bytes())?;
+        stream.write(&message)?;
+
+        Ok(())
+    }
+
+    pub fn recieve(stream: &mut TcpStream) -> Result<Mode> {
+        let mut version = [0; 4];
+
+        if stream.read(&mut version)? == 0 {
+            todo!("TcpStream already closed.");
+        }
+        let version = u32::from_le_bytes(version);
+
+        match version {
+            1 => Self::recieve_v1(stream),
+            _ => todo!("Invalid version"),
+        }
+    }
+
+    pub fn recieve_v1(stream: &mut TcpStream) -> Result<Mode> {
+        let mut length = [0; 8];
+
+        if stream.read(&mut length)? == 0 {
+            todo!("TcpStream already closed.");
+        }
+        let length = usize::from_le_bytes(length);
+
+        let mut binary = vec![0; length];
+
+        if stream.read(&mut binary)? == 0 {
+            todo!("TcpStream already closed.");
+        }
+
+        match binary[0] as char {
+            'M' => Ok(Mode::Message(Message::from_sendeable(&binary[1..])?)),
+            _ => todo!(),
+        }
+    }
+}
+
 pub const MESSAGE_VERSION: u32 = 1;
+
 #[derive(Debug)]
 pub struct Message {
     version: u32,
     level: Level,
     message: String,
+}
+
+impl Display for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "[{}] {}", self.level, self.message)
+    }
 }
 
 impl Message {
@@ -59,14 +146,8 @@ pub mod error {
 }
 
 impl Message {
-    pub fn send(&self, stream: &mut TcpStream) -> Result<()> {
-        stream
-            .write(vec!['M' as u8].as_slice())
-            .context("Failed send character 'M' to daemon.")?;
-        stream
-            .write(&self.make_sendeable())
-            .context("Failed to send message to daemon.")?;
-        Ok(())
+    pub fn send(self, stream: &mut TcpStream) -> Result<()> {
+        Transmission::new(Mode::Message(self)).transmit(stream)
     }
 
     fn make_sendeable(&self) -> Vec<u8> {
@@ -84,15 +165,11 @@ impl Message {
         array.copy_from_slice(&bytes[..4]);
         let version = u32::from_le_bytes(array);
 
-        let out = match version {
+        match version {
             1 => Ok(Self::from_sendeable_v1(bytes)),
             version => Err(error::InvalidVersion::new(version).anyhow())
                 .context("Failed to read a message."),
-        };
-        if let Ok(ref message) = out {
-            println!("{message:?}");
         }
-        out
     }
 
     fn from_sendeable_v1(bytes: &[u8]) -> Self {

@@ -1,23 +1,44 @@
 use std::{
-    net::TcpStream,
+    net::{Shutdown, TcpStream},
     sync::{Arc, Mutex},
 };
 
-use anyhow::Result;
 use log::Level;
 use sd_lib::{Message, ADDRESS};
 
 static mut STREAM: Option<Arc<Mutex<TcpStream>>> = None;
 
-pub fn init() -> Result<()> {
+pub fn init() {
     try_connect();
-
-    Ok(())
 }
 
-pub fn send_test_message(message: &str) -> Result<()> {
+pub fn report(record: &log::Record) {
     if let Some(stream) = unsafe { STREAM.as_ref() } {
-        Message::new(Level::Info, message.to_string()).send(&mut stream.lock().unwrap())
+        if record.level() <= Level::Info {
+            Message::new(record.level(), record.args().to_string())
+                .send(&mut stream.lock().unwrap())
+                .unwrap()
+        } else {
+            todo!()
+        }
+    } else {
+        todo!()
+    }
+}
+
+pub fn send_test_message(message: &str) {
+    if let Some(stream) = unsafe { STREAM.as_ref() } {
+        Message::new(Level::Info, message.to_string())
+            .send(&mut stream.lock().unwrap())
+            .unwrap()
+    } else {
+        todo!()
+    }
+}
+
+pub fn close_connection() {
+    if let Some(stream) = unsafe { STREAM.as_ref() } {
+        stream.lock().unwrap().shutdown(Shutdown::Both).unwrap()
     } else {
         todo!()
     }
