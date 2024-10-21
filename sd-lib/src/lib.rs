@@ -6,6 +6,7 @@ use log::Level;
 pub const ADDRESS: &'static str = "127.0.0.1:1500";
 
 pub const MESSAGE_VERSION: u32 = 1;
+#[derive(Debug)]
 pub struct Message {
     version: u32,
     level: Level,
@@ -69,9 +70,13 @@ impl Message {
     }
 
     fn make_sendeable(&self) -> Vec<u8> {
-        format!("{}{}{}", self.version, self.level as u8, self.message)
-            .as_bytes()
-            .to_vec()
+        let mut binary = Vec::new();
+
+        binary.append(&mut (self.version as u32).to_le_bytes().to_vec());
+        binary.append(&mut (self.level as u32).to_le_bytes().to_vec());
+        binary.append(&mut self.message.as_bytes().to_vec());
+
+        binary
     }
 
     pub fn from_sendeable(bytes: &[u8]) -> Result<Self> {
@@ -79,11 +84,15 @@ impl Message {
         array.copy_from_slice(&bytes[..4]);
         let version = u32::from_le_bytes(array);
 
-        match version {
+        let out = match version {
             1 => Ok(Self::from_sendeable_v1(bytes)),
             version => Err(error::InvalidVersion::new(version).anyhow())
                 .context("Failed to read a message."),
+        };
+        if let Ok(ref message) = out {
+            println!("{message:?}");
         }
+        out
     }
 
     fn from_sendeable_v1(bytes: &[u8]) -> Self {

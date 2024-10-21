@@ -28,13 +28,22 @@ fn main() {
                     .context("Failed to read from stream.")
                     .unwrap();
 
-                let message = Message::from_sendeable(&buf)
-                    .context("Invalid message read from stream.")
-                    .unwrap();
+                match buf[0] as char {
+                    'M' => {
+                        let binary = &buf[1..];
+                        println!("Recieved binary message: {binary:?}");
 
-                unsafe { MESSAGES.lock().unwrap().push(message) }
+                        let message = Message::from_sendeable(binary)
+                            .context("Invalid message read from stream.")
+                            .unwrap();
 
-                println!("")
+                        unsafe { MESSAGES.lock().unwrap().push(message) }
+                        println!("Read message.");
+                    }
+                    _ => {
+                        todo!()
+                    }
+                }
             }
         });
     }
