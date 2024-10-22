@@ -1,16 +1,17 @@
 use std::{
     net::{Shutdown, TcpListener},
-    // sync::{Arc, Mutex},
+    sync::{Arc, Mutex},
     thread,
 };
 
 use anyhow::Context;
-use log::{set_logger, set_max_level, Log};
-// use once_cell::sync::Lazy;
-use sd_lib::{/* Message, */ print_record, Mode, Transmission, ADDRESS};
+use clap::{ArgAction, Parser};
+use log::{set_logger, set_max_level, Level, Log};
+use once_cell::sync::Lazy;
+use sd_lib::{print_record, Message, Mode, Transmission, ADDRESS};
 
-// static mut MESSAGES: Lazy<Arc<Mutex<Vec<Message>>>> =
-//     Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
+static mut MESSAGES: Lazy<Arc<Mutex<Vec<Message>>>> =
+    Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 
 struct Logger {}
 
@@ -28,9 +29,19 @@ impl Log for Logger {
     fn flush(&self) {}
 }
 
+#[derive(clap::Parser)]
+struct Cli {
+    #[arg(long, short, global = true, action = ArgAction::SetTrue)]
+    quiet: Option<bool>,
+}
+
 fn main() {
-    set_logger(&Logger {}).unwrap();
-    set_max_level(log::LevelFilter::Trace);
+    let Cli { quiet } = Cli::parse();
+
+    if !quiet.unwrap_or(false) {
+        set_logger(&Logger {}).unwrap();
+        set_max_level(log::LevelFilter::Trace);
+    }
 
     let listener = TcpListener::bind(ADDRESS)
         .context(format!("Failed to bind to address {ADDRESS}."))
@@ -44,14 +55,26 @@ fn main() {
                 let transmission = Transmission::recieve(&mut stream).unwrap();
 
                 match transmission {
-                    Mode::Message(message) => message.display(),
+                    Mode::Message(message) => {
+                        handle_message(message);
+                    }
                     Mode::Exit(exitcode) => {
-                        println!("Client will exit with code {exitcode}. Closing connection.");
+                        handle_message(Message::new(
+                            Level::Info,
+                            format!("Client will exit with code {exitcode}. Closing connection."),
+                        ));
                         stream.shutdown(Shutdown::Both).unwrap();
                         return;
                     }
                 }
             }
         });
+    }
+}
+
+fn handle_message(message: Message) {
+    message.display();
+    unsafe {
+        MESSAGES.lock().unwrap().push(message);
     }
 }
