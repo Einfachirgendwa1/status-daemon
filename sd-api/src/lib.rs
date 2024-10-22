@@ -6,8 +6,8 @@ use std::{
 };
 
 use anyhow::Result;
-use log::{set_logger, set_max_level, Level, LevelFilter, Log};
-use sd_lib::{print_record, Message, Mode, Transmission, ADDRESS};
+use log::{set_logger, set_max_level, LevelFilter, Log};
+use sd_lib::{print_record, Message, Mode, ADDRESS};
 
 static mut STREAM: Option<Arc<Mutex<TcpStream>>> = None;
 
@@ -20,26 +20,6 @@ pub fn report(record: &log::Record) {
         Message::new(record.level(), record.args().to_string())
             .send(&mut stream.lock().unwrap())
             .unwrap()
-    } else {
-        todo!()
-    }
-}
-
-pub fn send_test_message(message: &str) {
-    if let Some(stream) = unsafe { STREAM.as_ref() } {
-        Message::new(Level::Info, message.to_string())
-            .send(&mut stream.lock().unwrap())
-            .unwrap()
-    } else {
-        todo!()
-    }
-}
-
-pub fn close_connection(exit_code: u8) {
-    if let Some(stream) = unsafe { STREAM.as_ref() } {
-        Transmission::new(Mode::Exit(exit_code))
-            .transmit(&mut stream.lock().unwrap())
-            .unwrap();
     } else {
         todo!()
     }
@@ -81,6 +61,14 @@ pub fn use_recommended_logger() -> Result<()> {
     set_max_level(LevelFilter::Trace);
 
     Ok(())
+}
+
+pub fn close_connection(exitcode: u8) {
+    if let Some(stream) = unsafe { STREAM.as_ref() } {
+        Mode::Exit(exitcode)
+            .transmit(&mut stream.lock().unwrap())
+            .unwrap()
+    }
 }
 
 fn try_connect() {

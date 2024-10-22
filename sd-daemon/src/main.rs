@@ -9,9 +9,9 @@ use std::{
 
 use anyhow::Context;
 use clap::{ArgAction, Parser};
-use log::{set_logger, set_max_level, Level, Log};
+use log::{error, set_logger, set_max_level, warn, Level, Log};
 use once_cell::sync::Lazy;
-use sd_lib::{print_record, Message, Mode, Transmission, ADDRESS};
+use sd_lib::{print_record, Message, Mode, ADDRESS};
 
 static mut MESSAGES: Lazy<Arc<Mutex<Vec<Message>>>> =
     Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
@@ -24,6 +24,12 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &log::Record) {
+        unsafe {
+            MESSAGES
+                .lock()
+                .unwrap()
+                .push(Message::new(record.level(), record.args().to_string()));
+        }
         if self.enabled(record.metadata()) {
             print_record(record);
         }
@@ -56,31 +62,33 @@ fn main() {
         thread::spawn(move || {
             let mut stream = stream.context("Connection failed!").unwrap();
 
+            let Mode::Auth(auth) = Mode::recieve(&mut stream).unwrap() else {
+                error!("The first transmission of the client wasn't an auth transmission!");
+                return;
+            };
+
+            dbg!(&auth);
+
             loop {
-                let transmission = Transmission::recieve(&mut stream).unwrap();
+                let transmission = Mode::recieve(&mut stream).unwrap();
 
                 match transmission {
                     Mode::Message(message) => {
-                        handle_message(message);
+                        message.display();
                     }
                     Mode::Exit(exitcode) => {
-                        handle_message(Message::new(
+                        Message::new(
                             Level::Info,
                             format!("Client will exit with code {exitcode}. Closing connection."),
-                        ));
+                        )
+                        .display();
                         stream.shutdown(Shutdown::Both).unwrap();
                         return;
                     }
+                    Mode::Auth(_) => warn!("Client sent an auth message. Only the first transmission should be an auth message."),
                 }
             }
         });
-    }
-}
-
-fn handle_message(message: Message) {
-    message.display();
-    unsafe {
-        MESSAGES.lock().unwrap().push(message);
     }
 }
 
@@ -94,7 +102,9 @@ fn save_logs() {
         drop(lock);
 
         for message in messages {
-            testfile.write(&message.make_sendeable()).unwrap();
+            testfile
+                .write(serde_json::to_string(&message).unwrap().as_bytes())
+                .unwrap();
         }
         sleep(Duration::from_secs(10));
     }
