@@ -1,4 +1,6 @@
 use std::{
+    fs::File,
+    io::Write,
     net::{Shutdown, TcpListener},
     sync::{Arc, Mutex},
     thread::{self, sleep},
@@ -83,14 +85,16 @@ fn handle_message(message: Message) {
 }
 
 fn save_logs() {
+    let mut testfile = File::create("testfile").unwrap();
+
     loop {
         let mut lock = unsafe { MESSAGES.lock().unwrap() };
         let messages = lock.to_vec();
         lock.clear();
         drop(lock);
 
-        if !messages.is_empty() {
-            dbg!(&messages);
+        for message in messages {
+            testfile.write(&message.make_sendeable()).unwrap();
         }
         sleep(Duration::from_secs(10));
     }

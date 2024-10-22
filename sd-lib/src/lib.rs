@@ -163,7 +163,7 @@ impl Message {
         Transmission::new(Mode::Message(self)).transmit(stream)
     }
 
-    fn make_sendeable(&self) -> Vec<u8> {
+    pub fn make_sendeable(&self) -> Vec<u8> {
         let mut binary = Vec::new();
 
         binary.append(&mut (self.version as u32).to_le_bytes().to_vec());
