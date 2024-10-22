@@ -79,7 +79,7 @@ fn main() {
                     Mode::Exit(exitcode) => {
                         Message::new(
                             Level::Info,
-                            format!("Client will exit with code {exitcode}. Closing connection."),
+                            format!("Client will exit with {exitcode}. Closing connection."),
                         )
                         .display();
                         stream.shutdown(Shutdown::Both).unwrap();
@@ -102,9 +102,9 @@ fn save_logs() {
         drop(lock);
 
         for message in messages {
-            testfile
-                .write(serde_json::to_string(&message).unwrap().as_bytes())
-                .unwrap();
+            let mut message = serde_json::to_string(&message).unwrap();
+            message.push('\n');
+            testfile.write(message.as_bytes()).unwrap();
         }
         sleep(Duration::from_secs(10));
     }

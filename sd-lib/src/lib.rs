@@ -17,8 +17,6 @@ unsafe fn sketchy<A, B: Copy>(a: A) -> B {
 
 pub const ADDRESS: &'static str = "127.0.0.1:1500";
 
-pub const TRANSMISSION_VERSION: u32 = 1;
-
 #[derive(Serialize, Deserialize)]
 pub enum Mode {
     Message(Message),
@@ -52,11 +50,8 @@ impl Mode {
     }
 }
 
-pub const MESSAGE_VERSION: u32 = 1;
-
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
-    version: u32,
     level: usize,
     message: String,
 }
@@ -64,7 +59,6 @@ pub struct Message {
 impl Message {
     pub fn new(level: Level, message: String) -> Self {
         Self {
-            version: MESSAGE_VERSION,
             level: level as usize,
             message,
         }
@@ -92,42 +86,8 @@ impl Display for Message {
     }
 }
 
-pub mod error {
-    use std::{error::Error, fmt::Display};
-
-    #[derive(Debug)]
-    pub struct InvalidVersion {
-        version: u32,
-    }
-
-    impl Display for InvalidVersion {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(
-                f,
-                "Version {} not supported for this operation",
-                self.version
-            )
-        }
-    }
-
-    impl Error for InvalidVersion {}
-
-    impl InvalidVersion {
-        pub fn new(version: u32) -> Self {
-            Self { version }
-        }
-
-        pub fn anyhow(self) -> anyhow::Error {
-            self.into()
-        }
-    }
-}
-
-pub const AUTH_VERSION: u32 = 1;
-
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Auth {
-    version: u32,
     pub identifier: String,
     pub name: String,
     pub description: Option<String>,
@@ -153,7 +113,6 @@ impl Default for Auth {
             .to_string();
 
         Self {
-            version: AUTH_VERSION,
             name: identifier.clone(),
             identifier,
             description: None,
