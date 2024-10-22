@@ -93,7 +93,7 @@ impl Transmission {
 
 pub const MESSAGE_VERSION: u32 = 1;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Message {
     version: u32,
     level: Level,

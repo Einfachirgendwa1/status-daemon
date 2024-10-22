@@ -1,7 +1,8 @@
 use std::{
     net::{Shutdown, TcpListener},
     sync::{Arc, Mutex},
-    thread,
+    thread::{self, sleep},
+    time::Duration,
 };
 
 use anyhow::Context;
@@ -47,6 +48,8 @@ fn main() {
         .context(format!("Failed to bind to address {ADDRESS}."))
         .unwrap();
 
+    thread::spawn(save_logs);
+
     for stream in listener.incoming() {
         thread::spawn(move || {
             let mut stream = stream.context("Connection failed!").unwrap();
@@ -76,5 +79,19 @@ fn handle_message(message: Message) {
     message.display();
     unsafe {
         MESSAGES.lock().unwrap().push(message);
+    }
+}
+
+fn save_logs() {
+    loop {
+        let mut lock = unsafe { MESSAGES.lock().unwrap() };
+        let messages = lock.to_vec();
+        lock.clear();
+        drop(lock);
+
+        if !messages.is_empty() {
+            dbg!(&messages);
+        }
+        sleep(Duration::from_secs(10));
     }
 }
