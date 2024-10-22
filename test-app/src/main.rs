@@ -1,9 +1,9 @@
 use log::{debug, error, info, trace, warn};
-use sd_api::{close_connection, RecommendedLogger};
+use sd_api::{close_connection, use_recommended_logger};
 
 fn main() {
     sd_api::init();
-    RecommendedLogger::use_this().unwrap();
+    use_recommended_logger().unwrap();
 
     error!("This is an error.");
     warn!("This is a warning.");

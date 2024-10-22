@@ -89,15 +89,13 @@ impl Display for SetLoggerError {
 
 impl Error for SetLoggerError {}
 
-impl RecommendedLogger {
-    pub fn use_this() -> Result<()> {
-        if set_logger(&RecommendedLogger { report: true }).is_err() {
-            Err(SetLoggerError {})?;
-        }
-        set_max_level(LevelFilter::Trace);
-
-        Ok(())
+pub fn use_recommended_logger() -> Result<()> {
+    if set_logger(&RecommendedLogger { report: true }).is_err() {
+        Err(SetLoggerError {})?;
     }
+    set_max_level(LevelFilter::Trace);
+
+    Ok(())
 }
 
 fn try_connect() {
