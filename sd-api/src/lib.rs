@@ -6,9 +6,8 @@ use std::{
 };
 
 use anyhow::Result;
-use colored::Colorize;
 use log::{set_logger, set_max_level, Level, LevelFilter, Log};
-use sd_lib::{Message, Mode, Transmission, ADDRESS};
+use sd_lib::{print_record, Message, Mode, Transmission, ADDRESS};
 
 static mut STREAM: Option<Arc<Mutex<TcpStream>>> = None;
 
@@ -46,9 +45,7 @@ pub fn close_connection(exit_code: u8) {
     }
 }
 
-pub struct RecommendedLogger {
-    pub report: bool,
-}
+pub struct RecommendedLogger {}
 
 impl Log for RecommendedLogger {
     fn enabled(&self, _: &log::Metadata) -> bool {
@@ -56,21 +53,9 @@ impl Log for RecommendedLogger {
     }
 
     fn log(&self, record: &log::Record) {
-        if self.report {
-            report(&record)
-        }
-
+        report(&record);
         if self.enabled(record.metadata()) {
-            println!(
-                "{}",
-                match record.level() {
-                    Level::Error => format!("[ERROR] {}", record.args()).red(),
-                    Level::Warn => format!("[WARN ] {}", record.args()).yellow(),
-                    Level::Info => format!("[INFO ] {}", record.args()).cyan(),
-                    Level::Debug => format!("[DEBUG] {}", record.args()).green(),
-                    Level::Trace => format!("[TRACE] {}", record.args()).black(),
-                }
-            );
+            print_record(record);
         }
     }
 
@@ -90,7 +75,7 @@ impl Display for SetLoggerError {
 impl Error for SetLoggerError {}
 
 pub fn use_recommended_logger() -> Result<()> {
-    if set_logger(&RecommendedLogger { report: true }).is_err() {
+    if set_logger(&RecommendedLogger {}).is_err() {
         Err(SetLoggerError {})?;
     }
     set_max_level(LevelFilter::Trace);

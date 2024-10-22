@@ -572,7 +572,6 @@ dependencies = [
  "anyhow",
  "log",
  "once_cell",
- "sd-api",
  "sd-lib",
 ]
 
@@ -581,6 +580,7 @@ name = "sd-lib"
 version = "0.1.0"
 dependencies = [
  "anyhow",
+ "colored",
  "log",
 ]
 

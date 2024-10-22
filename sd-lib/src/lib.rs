@@ -5,6 +5,7 @@ use std::{
 };
 
 use anyhow::{Context, Result};
+use colored::Colorize;
 use log::{debug, error, info, trace, warn, Level};
 
 unsafe fn sketchy<A, B: Copy>(a: A) -> B {
@@ -198,4 +199,17 @@ impl Message {
             message,
         }
     }
+}
+
+pub fn print_record(record: &log::Record) {
+    println!(
+        "{}",
+        match record.level() {
+            Level::Error => format!("[ERROR] {}", record.args()).red(),
+            Level::Warn => format!("[WARN ] {}", record.args()).yellow(),
+            Level::Info => format!("[INFO ] {}", record.args()).cyan(),
+            Level::Debug => format!("[DEBUG] {}", record.args()).green(),
+            Level::Trace => format!("[TRACE] {}", record.args()).black(),
+        }
+    );
 }
