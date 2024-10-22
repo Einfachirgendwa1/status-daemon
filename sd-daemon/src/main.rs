@@ -1,6 +1,6 @@
 use std::{
-    fs::File,
-    io::Write,
+    fs::{File, OpenOptions},
+    io::{Read, Write},
     net::{Shutdown, TcpListener},
     sync::{Arc, Mutex},
     thread::{self, sleep},
@@ -13,7 +13,7 @@ use log::{error, set_logger, set_max_level, warn, Level, Log};
 use once_cell::sync::Lazy;
 use sd_lib::{print_record, Message, Mode, ADDRESS};
 
-static mut MESSAGES: Lazy<Arc<Mutex<Vec<Message>>>> =
+static mut MESSAGES: Lazy<Arc<Mutex<Vec<(u32, Message)>>>> =
     Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 
 struct Logger {}
@@ -24,18 +24,19 @@ impl Log for Logger {
     }
 
     fn log(&self, record: &log::Record) {
-        unsafe {
-            MESSAGES
-                .lock()
-                .unwrap()
-                .push(Message::new(record.level(), record.args().to_string()));
-        }
         if self.enabled(record.metadata()) {
             print_record(record);
         }
     }
 
     fn flush(&self) {}
+}
+
+fn handle_message(index: u32, message: Message) {
+    message.display();
+    unsafe {
+        MESSAGES.lock().unwrap().push((index, message));
+    }
 }
 
 #[derive(clap::Parser)]
@@ -67,21 +68,46 @@ fn main() {
                 return;
             };
 
-            dbg!(&auth);
+            let mut clients = OpenOptions::new()
+                .create(true)
+                .write(true)
+                .read(true)
+                .truncate(false)
+                .open("clients.txt")
+                .unwrap();
+
+            let mut index = 0;
+            let mut found = false;
+
+            let mut content = String::new();
+            clients.read_to_string(&mut content).unwrap();
+            for line in content.split('\n') {
+                if line.starts_with(&format!("{} ", auth.name)) {
+                    found = true;
+                    break;
+                }
+                index += 1;
+            }
+
+            if !found {
+                clients
+                    .write(
+                        format!("{} {}\n", auth.name, serde_json::to_string(&auth).unwrap())
+                            .as_bytes(),
+                    )
+                    .unwrap();
+            }
 
             loop {
                 let transmission = Mode::recieve(&mut stream).unwrap();
 
                 match transmission {
-                    Mode::Message(message) => {
-                        message.display();
-                    }
+                    Mode::Message(message) => handle_message(index, message),
                     Mode::Exit(exitcode) => {
-                        Message::new(
+                        handle_message(index, Message::new(
                             Level::Info,
                             format!("Client will exit with {exitcode}. Closing connection."),
-                        )
-                        .display();
+                        ));
                         stream.shutdown(Shutdown::Both).unwrap();
                         return;
                     }
@@ -93,7 +119,7 @@ fn main() {
 }
 
 fn save_logs() {
-    let mut testfile = File::create("testfile").unwrap();
+    let mut logfile = File::create("logfile.txt").unwrap();
 
     loop {
         let mut lock = unsafe { MESSAGES.lock().unwrap() };
@@ -101,10 +127,11 @@ fn save_logs() {
         lock.clear();
         drop(lock);
 
-        for message in messages {
-            let mut message = serde_json::to_string(&message).unwrap();
-            message.push('\n');
-            testfile.write(message.as_bytes()).unwrap();
+        for (index, message) in messages {
+            let message = serde_json::to_string(&message).unwrap();
+            logfile
+                .write(format!("{index} {message}\n").as_bytes())
+                .unwrap();
         }
         sleep(Duration::from_secs(10));
     }
