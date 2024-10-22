@@ -1,5 +1,5 @@
 use log::{error, info, warn, LevelFilter, Log};
-use sd_api::report;
+use sd_api::{close_connection, report};
 
 struct Logger {}
 
@@ -27,5 +27,5 @@ fn main() {
     warn!("This is a warning.");
     error!("This is a error.");
 
-    loop {}
+    close_connection(0);
 }

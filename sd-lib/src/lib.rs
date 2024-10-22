@@ -80,6 +80,7 @@ impl Transmission {
 
         match binary[0] as char {
             'M' => Ok(Mode::Message(Message::from_sendeable(&binary[1..])?)),
+            'E' => Ok(Mode::Exit(binary[1])),
             _ => todo!(),
         }
     }

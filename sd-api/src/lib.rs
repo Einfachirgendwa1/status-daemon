@@ -4,7 +4,7 @@ use std::{
 };
 
 use log::Level;
-use sd_lib::{Message, ADDRESS};
+use sd_lib::{Message, Mode, Transmission, ADDRESS};
 
 static mut STREAM: Option<Arc<Mutex<TcpStream>>> = None;
 
@@ -36,9 +36,14 @@ pub fn send_test_message(message: &str) {
     }
 }
 
-pub fn close_connection() {
+pub fn close_connection(exit_code: u8) {
     if let Some(stream) = unsafe { STREAM.as_ref() } {
-        stream.lock().unwrap().shutdown(Shutdown::Both).unwrap()
+        let mut stream = stream.lock().unwrap();
+        Transmission::new(Mode::Exit(exit_code))
+            .transmit(&mut stream)
+            .unwrap();
+        stream.shutdown(Shutdown::Both).unwrap();
+        unsafe { STREAM = None }
     } else {
         todo!()
     }
