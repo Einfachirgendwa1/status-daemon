@@ -7,12 +7,13 @@ use std::{
 
 use anyhow::Result;
 use log::{set_logger, set_max_level, LevelFilter, Log};
-use sd_lib::{print_record, Message, Mode, ADDRESS};
+use sd_lib::{print_record, Auth, Message, Mode, ADDRESS};
 
 static mut STREAM: Option<Arc<Mutex<TcpStream>>> = None;
 
 pub fn init() {
     try_connect();
+    send_auth(Auth::default());
 }
 
 pub fn report(record: &log::Record) {
@@ -81,6 +82,14 @@ fn try_connect() {
         } else {
             todo!("Failed to connect even after starting daemon.");
         }
+    }
+}
+
+fn send_auth(auth: Auth) {
+    if let Some(stream) = unsafe { STREAM.as_ref() } {
+        Mode::Auth(auth)
+            .transmit(&mut stream.lock().unwrap())
+            .unwrap()
     }
 }
 

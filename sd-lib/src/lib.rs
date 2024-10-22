@@ -129,7 +129,7 @@ pub const AUTH_VERSION: u32 = 1;
 pub struct Auth {
     version: u32,
     pub identifier: String,
-    pub name: Option<String>,
+    pub name: String,
     pub description: Option<String>,
     pub icon_path: Option<String>,
 }
@@ -137,7 +137,7 @@ pub struct Auth {
 impl Auth {
     pub fn new(name: String) -> Self {
         Self {
-            name: Some(name),
+            name,
             ..Default::default()
         }
     }
@@ -154,7 +154,7 @@ impl Default for Auth {
 
         Self {
             version: AUTH_VERSION,
-            name: Some(identifier.clone()),
+            name: identifier.clone(),
             identifier,
             description: None,
             icon_path: None,
