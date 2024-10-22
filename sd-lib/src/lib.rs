@@ -5,7 +5,11 @@ use std::{
 };
 
 use anyhow::{Context, Result};
-use log::Level;
+use log::{debug, error, info, trace, warn, Level};
+
+unsafe fn sketchy<A, B: Copy>(a: A) -> B {
+    *(&a as *const A as *const B)
+}
 
 pub const ADDRESS: &'static str = "127.0.0.1:1500";
 
@@ -95,12 +99,6 @@ pub struct Message {
     message: String,
 }
 
-impl Display for Message {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "[{}] {}", self.level, self.message)
-    }
-}
-
 impl Message {
     pub fn new(level: Level, message: String) -> Self {
         Self {
@@ -109,10 +107,23 @@ impl Message {
             message,
         }
     }
+
+    pub fn display(&self) {
+        // INFO: Maybe use log::log!() instead?
+        match self.level {
+            Level::Error => error!("{self}"),
+            Level::Warn => warn!("{self}"),
+            Level::Info => info!("{self}"),
+            Level::Debug => debug!("{self}"),
+            Level::Trace => trace!("{self}"),
+        }
+    }
 }
 
-unsafe fn sketchy<A, B: Copy>(a: A) -> B {
-    *(&a as *const A as *const B)
+impl Display for Message {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.message)
+    }
 }
 
 pub mod error {

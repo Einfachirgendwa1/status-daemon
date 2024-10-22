@@ -5,6 +5,8 @@ use std::{
 };
 
 use anyhow::Context;
+use log::{set_logger, set_max_level};
+use sd_api::RecommendedLogger;
 // use once_cell::sync::Lazy;
 use sd_lib::{/* Message, */ Mode, Transmission, ADDRESS};
 
@@ -12,6 +14,9 @@ use sd_lib::{/* Message, */ Mode, Transmission, ADDRESS};
 //     Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
 
 fn main() {
+    set_logger(&RecommendedLogger { report: false }).unwrap();
+    set_max_level(log::LevelFilter::Trace);
+
     let listener = TcpListener::bind(ADDRESS)
         .context(format!("Failed to bind to address {ADDRESS}."))
         .unwrap();
@@ -24,7 +29,7 @@ fn main() {
                 let transmission = Transmission::recieve(&mut stream).unwrap();
 
                 match transmission {
-                    Mode::Message(message) => println!("{message}"),
+                    Mode::Message(message) => message.display(),
                     Mode::Exit(exitcode) => {
                         println!("Client will exit with code {exitcode}. Closing connection.");
                         stream.shutdown(Shutdown::Both).unwrap();

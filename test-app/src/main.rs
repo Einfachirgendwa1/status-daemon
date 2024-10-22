@@ -1,31 +1,15 @@
-use log::{error, info, warn, LevelFilter, Log};
-use sd_api::{close_connection, report};
-
-struct Logger {}
-
-impl Log for Logger {
-    fn enabled(&self, _: &log::Metadata) -> bool {
-        true
-    }
-
-    fn log(&self, record: &log::Record) {
-        report(record);
-
-        println!("{}: {}", record.level(), record.args());
-    }
-
-    fn flush(&self) {}
-}
+use log::{debug, error, info, trace, warn};
+use sd_api::{close_connection, RecommendedLogger};
 
 fn main() {
     sd_api::init();
+    RecommendedLogger::use_this().unwrap();
 
-    log::set_logger(&Logger {}).unwrap();
-    log::set_max_level(LevelFilter::Trace);
-
-    info!("Hello, World!");
+    error!("This is an error.");
     warn!("This is a warning.");
-    error!("This is a error.");
+    info!("This is an info.");
+    debug!("This is a debug message.");
+    trace!("This is a trace.");
 
     close_connection(0);
 }
