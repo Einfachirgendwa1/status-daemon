@@ -88,9 +88,20 @@ fn main() {
         thread::spawn(move || {
             let mut stream = stream.context("Connection failed!").unwrap();
 
-            let Mode::Auth(auth) = Mode::recieve(&mut stream).unwrap() else {
-                error!("The first transmission of the client wasn't an auth transmission!");
-                return;
+            let auth = match Mode::recieve(&mut stream).unwrap() {
+                Mode::Auth(auth) => auth,
+                Mode::NewClient => {
+                    write_rx
+                        .lock()
+                        .unwrap()
+                        .send(WriteTransmission::NewClient(stream))
+                        .unwrap();
+                    return;
+                }
+                _ => {
+                    error!("The first transmission of the client wasn't an Auth or NewClient transmission!");
+                    return;
+                }
             };
 
             let mut clients = OpenOptions::new()
@@ -152,17 +163,16 @@ fn main() {
                         // https://github.com/rust-lang/rustfmt/issues/3206
                         warn!(
                             "{}{}",
-                            "Client sent an auth message.",
-                            "Only the first transmission should be an auth message."
+                            "Client sent an Auth message.",
+                            "Only the first transmission should be an Auth message."
                         );
                     }
                     Mode::NewClient => {
-                        write_rx
-                            .lock()
-                            .unwrap()
-                            .send(WriteTransmission::NewClient(stream))
-                            .unwrap();
-                        return;
+                        warn!(
+                            "{}{}",
+                            "Client sent a NewClient message.",
+                            "Only the first transmission should be a NewClient message."
+                        );
                     }
                 }
             }
