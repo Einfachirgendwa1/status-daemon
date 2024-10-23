@@ -1,9 +1,14 @@
+use std::{io::Write, net::TcpStream, thread};
+
 use gtk::{
     gio::ApplicationFlags, glib::ExitCode, prelude::*, Application, ApplicationWindow, Grid, Label,
     WindowPosition,
 };
+use sd_lib::{Mode, ADDRESS};
 
 fn main() -> ExitCode {
+    thread::spawn(daemon_communication);
+
     let application = Application::new(None, ApplicationFlags::FLAGS_NONE);
 
     application.connect_activate(|app| {
@@ -41,4 +46,10 @@ fn main() -> ExitCode {
 
 fn new_label(content: &str) -> Label {
     Label::new(Some(content))
+}
+
+fn daemon_communication() {
+    let mut stream = TcpStream::connect(ADDRESS).unwrap();
+
+    Mode::NewClient.transmit(&mut stream).unwrap();
 }
