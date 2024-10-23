@@ -1,4 +1,4 @@
-use std::{io::Write, net::TcpStream, thread};
+use std::{net::TcpStream, thread};
 
 use gtk::{
     gio::ApplicationFlags, glib::ExitCode, prelude::*, Application, ApplicationWindow, Grid, Label,
