@@ -58,6 +58,7 @@ fn main() {
         .unwrap();
 
     thread::spawn(save_logs);
+    thread::spawn(respond);
 
     for stream in listener.incoming() {
         thread::spawn(move || {
@@ -134,5 +135,21 @@ fn save_logs() {
                 .unwrap();
         }
         sleep(Duration::from_secs(10));
+    }
+}
+
+fn respond() {
+    let mut senders = Vec::new();
+
+    let mut content;
+    if let Ok(mut senders_txt) = File::open("clients.txt") {
+        content = String::new();
+        senders_txt.read_to_string(&mut content).unwrap();
+
+        content
+            .split('\n')
+            .filter(|x| !x.is_empty())
+            .filter_map(|x| x.split_once(' '))
+            .for_each(|x| senders.push(x));
     }
 }
