@@ -22,6 +22,7 @@ pub enum Mode {
     Message(Message),
     Exit(u8),
     Auth(Auth),
+    NewClient,
 }
 
 impl Mode {

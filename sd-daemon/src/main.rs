@@ -1,9 +1,9 @@
 use std::{
     fs::{File, OpenOptions},
     io::{Read, Write},
-    net::{Shutdown, TcpListener},
+    net::{Shutdown, TcpListener, TcpStream},
     sync::{
-        mpsc::{self, channel, Receiver, Sender},
+        mpsc::{channel, Receiver, Sender},
         Arc, Mutex,
     },
     thread,
@@ -40,7 +40,7 @@ struct RecievedMessage {
 fn handle_message(
     recieved_message: RecievedMessage,
     save_rx: Arc<Mutex<Sender<RecievedMessage>>>,
-    write_rx: Arc<Mutex<Sender<RecievedMessage>>>,
+    write_rx: Arc<Mutex<Sender<WriteTransmission>>>,
 ) {
     recieved_message.message.display();
     save_rx
@@ -48,7 +48,11 @@ fn handle_message(
         .unwrap()
         .send(recieved_message.clone())
         .unwrap();
-    write_rx.lock().unwrap().send(recieved_message).unwrap();
+    write_rx
+        .lock()
+        .unwrap()
+        .send(WriteTransmission::RecievedMessage(recieved_message))
+        .unwrap();
 }
 
 #[derive(clap::Parser)]
@@ -125,16 +129,41 @@ fn main() {
                 let transmission = Mode::recieve(&mut stream).unwrap();
 
                 match transmission {
-                    Mode::Message(message) => {let recieved_message = RecievedMessage {message, origin:index};handle_message(recieved_message, save_rx, write_rx)}
-                    Mode::Exit(exitcode) =>{let recieved_message = RecievedMessage {message: Message::new(
-                            Level::Info,
-                            format!("Client will exit with {exitcode}. Closing connection."),
-                        ), origin:index};
+                    Mode::Message(message) => {
+                        let recieved_message = RecievedMessage {
+                            message,
+                            origin: index,
+                        };
+                        handle_message(recieved_message, save_rx, write_rx);
+                    }
+                    Mode::Exit(exitcode) => {
+                        let recieved_message = RecievedMessage {
+                            message: Message::new(
+                                Level::Info,
+                                format!("Client will exit with {exitcode}. Closing connection."),
+                            ),
+                            origin: index,
+                        };
                         handle_message(recieved_message, save_rx, write_rx);
                         stream.shutdown(Shutdown::Both).unwrap();
                         return;
                     }
-                    Mode::Auth(_) => warn!("Client sent an auth message. Only the first transmission should be an auth message."),
+                    Mode::Auth(_) => {
+                        // https://github.com/rust-lang/rustfmt/issues/3206
+                        warn!(
+                            "{}{}",
+                            "Client sent an auth message.",
+                            "Only the first transmission should be an auth message."
+                        );
+                    }
+                    Mode::NewClient => {
+                        write_rx
+                            .lock()
+                            .unwrap()
+                            .send(WriteTransmission::NewClient(stream))
+                            .unwrap();
+                        return;
+                    }
                 }
             }
         });
@@ -156,7 +185,13 @@ fn save(tx: Receiver<RecievedMessage>) {
     }
 }
 
-fn write(tx: mpsc::Receiver<RecievedMessage>) {
+#[derive(Debug)]
+enum WriteTransmission {
+    RecievedMessage(RecievedMessage),
+    NewClient(TcpStream),
+}
+
+fn write(tx: Receiver<WriteTransmission>) {
     let mut senders = Vec::new();
 
     let mut content;
@@ -171,8 +206,22 @@ fn write(tx: mpsc::Receiver<RecievedMessage>) {
             .for_each(|x| senders.push(x));
     }
 
+    let mut clients = Vec::new();
+
     loop {
-        let msg = tx.recv().unwrap();
-        dbg!(&msg);
+        let transmission = tx.recv().unwrap();
+        match transmission {
+            WriteTransmission::NewClient(client) => clients.push(client),
+            WriteTransmission::RecievedMessage(recieved_message) => {
+                for mut client in &clients {
+                    let msg = format!(
+                        "{} {}\n",
+                        recieved_message.origin,
+                        serde_json::to_string(&recieved_message.message).unwrap()
+                    );
+                    client.write(msg.as_bytes()).unwrap();
+                }
+            }
+        }
     }
 }
