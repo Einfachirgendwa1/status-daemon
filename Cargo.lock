@@ -675,6 +675,8 @@ name = "sd-client"
 version = "0.1.0"
 dependencies = [
  "gtk",
+ "sd-lib",
+ "serde_json",
 ]
 
 [[package]]
