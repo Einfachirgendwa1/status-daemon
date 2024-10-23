@@ -17,9 +17,16 @@ unsafe fn sketchy<A, B: Copy>(a: A) -> B {
 
 pub const ADDRESS: &'static str = "127.0.0.1:1500";
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct RecievedMessage {
+    pub message: Message,
+    pub origin: u32,
+}
+
 #[derive(Serialize, Deserialize)]
 pub enum Mode {
     Message(Message),
+    RecievedMessage(RecievedMessage),
     Exit(u8),
     Auth(Auth),
     NewClient,

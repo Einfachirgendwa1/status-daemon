@@ -52,4 +52,15 @@ fn daemon_communication() {
     let mut stream = TcpStream::connect(ADDRESS).unwrap();
 
     Mode::NewClient.transmit(&mut stream).unwrap();
+
+    loop {
+        match Mode::recieve(&mut stream).unwrap() {
+            Mode::RecievedMessage(message) => {
+                dbg!(&message);
+            }
+            _ => {
+                dbg!("Daemon send an invalid response.");
+            }
+        }
+    }
 }

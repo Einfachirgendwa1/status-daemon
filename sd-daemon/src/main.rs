@@ -12,8 +12,7 @@ use std::{
 use anyhow::Context;
 use clap::{ArgAction, Parser};
 use log::{error, set_logger, set_max_level, warn, Level, Log};
-use sd_lib::{print_record, Message, Mode, ADDRESS};
-use serde::Serialize;
+use sd_lib::{print_record, Message, Mode, RecievedMessage, ADDRESS};
 
 struct Logger {}
 
@@ -29,12 +28,6 @@ impl Log for Logger {
     }
 
     fn flush(&self) {}
-}
-
-#[derive(Debug, Clone, Serialize)]
-struct RecievedMessage {
-    message: Message,
-    origin: u32,
 }
 
 fn handle_message(
@@ -174,6 +167,9 @@ fn main() {
                             "Only the first transmission should be a NewClient message."
                         );
                     }
+                    Mode::RecievedMessage(_) => {
+                        warn!("??????");
+                    }
                 }
             }
         });
@@ -223,13 +219,10 @@ fn write(tx: Receiver<WriteTransmission>) {
         match transmission {
             WriteTransmission::NewClient(client) => clients.push(client),
             WriteTransmission::RecievedMessage(recieved_message) => {
-                for mut client in &clients {
-                    let msg = format!(
-                        "{} {}\n",
-                        recieved_message.origin,
-                        serde_json::to_string(&recieved_message.message).unwrap()
-                    );
-                    client.write(msg.as_bytes()).unwrap();
+                for mut client in &mut clients {
+                    Mode::RecievedMessage(recieved_message.clone())
+                        .transmit(&mut client)
+                        .unwrap();
                 }
             }
         }
