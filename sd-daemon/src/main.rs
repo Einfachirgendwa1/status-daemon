@@ -2,19 +2,18 @@ use std::{
     fs::{File, OpenOptions},
     io::{Read, Write},
     net::{Shutdown, TcpListener},
-    sync::{Arc, Mutex},
-    thread::{self, sleep},
-    time::Duration,
+    sync::{
+        mpsc::{self, channel, Receiver, Sender},
+        Arc, Mutex,
+    },
+    thread,
 };
 
 use anyhow::Context;
 use clap::{ArgAction, Parser};
 use log::{error, set_logger, set_max_level, warn, Level, Log};
-use once_cell::sync::Lazy;
 use sd_lib::{print_record, Message, Mode, ADDRESS};
-
-static mut MESSAGES: Lazy<Arc<Mutex<Vec<(u32, Message)>>>> =
-    Lazy::new(|| Arc::new(Mutex::new(Vec::new())));
+use serde::Serialize;
 
 struct Logger {}
 
@@ -32,11 +31,24 @@ impl Log for Logger {
     fn flush(&self) {}
 }
 
-fn handle_message(index: u32, message: Message) {
-    message.display();
-    unsafe {
-        MESSAGES.lock().unwrap().push((index, message));
-    }
+#[derive(Debug, Clone, Serialize)]
+struct RecievedMessage {
+    message: Message,
+    origin: u32,
+}
+
+fn handle_message(
+    recieved_message: RecievedMessage,
+    save_rx: Arc<Mutex<Sender<RecievedMessage>>>,
+    write_rx: Arc<Mutex<Sender<RecievedMessage>>>,
+) {
+    recieved_message.message.display();
+    save_rx
+        .lock()
+        .unwrap()
+        .send(recieved_message.clone())
+        .unwrap();
+    write_rx.lock().unwrap().send(recieved_message).unwrap();
 }
 
 #[derive(clap::Parser)]
@@ -57,10 +69,18 @@ fn main() {
         .context(format!("Failed to bind to address {ADDRESS}."))
         .unwrap();
 
-    thread::spawn(save_logs);
-    thread::spawn(respond);
+    let (save_rx, save_tx) = channel();
+    thread::spawn(|| save(save_tx));
+    let save_rx = Arc::new(Mutex::new(save_rx));
+
+    let (write_rx, write_tx) = channel();
+    thread::spawn(|| write(write_tx));
+    let write_rx = Arc::new(Mutex::new(write_rx));
 
     for stream in listener.incoming() {
+        let save_rx = save_rx.clone();
+        let write_rx = write_rx.clone();
+
         thread::spawn(move || {
             let mut stream = stream.context("Connection failed!").unwrap();
 
@@ -100,15 +120,17 @@ fn main() {
             }
 
             loop {
+                let save_rx = save_rx.clone();
+                let write_rx = write_rx.clone();
                 let transmission = Mode::recieve(&mut stream).unwrap();
 
                 match transmission {
-                    Mode::Message(message) => handle_message(index, message),
-                    Mode::Exit(exitcode) => {
-                        handle_message(index, Message::new(
+                    Mode::Message(message) => {let recieved_message = RecievedMessage {message, origin:index};handle_message(recieved_message, save_rx, write_rx)}
+                    Mode::Exit(exitcode) =>{let recieved_message = RecievedMessage {message: Message::new(
                             Level::Info,
                             format!("Client will exit with {exitcode}. Closing connection."),
-                        ));
+                        ), origin:index};
+                        handle_message(recieved_message, save_rx, write_rx);
                         stream.shutdown(Shutdown::Both).unwrap();
                         return;
                     }
@@ -119,26 +141,22 @@ fn main() {
     }
 }
 
-fn save_logs() {
+fn save(tx: Receiver<RecievedMessage>) {
     let mut logfile = File::create("logfile.txt").unwrap();
 
     loop {
-        let mut lock = unsafe { MESSAGES.lock().unwrap() };
-        let messages = lock.to_vec();
-        lock.clear();
-        drop(lock);
+        let message = tx.recv().unwrap();
+        let msg = format!(
+            "{} {}\n",
+            message.origin,
+            serde_json::to_string(&message).unwrap()
+        );
 
-        for (index, message) in messages {
-            let message = serde_json::to_string(&message).unwrap();
-            logfile
-                .write(format!("{index} {message}\n").as_bytes())
-                .unwrap();
-        }
-        sleep(Duration::from_secs(10));
+        logfile.write(msg.as_bytes()).unwrap();
     }
 }
 
-fn respond() {
+fn write(tx: mpsc::Receiver<RecievedMessage>) {
     let mut senders = Vec::new();
 
     let mut content;
@@ -151,5 +169,10 @@ fn respond() {
             .filter(|x| !x.is_empty())
             .filter_map(|x| x.split_once(' '))
             .for_each(|x| senders.push(x));
+    }
+
+    loop {
+        let msg = tx.recv().unwrap();
+        dbg!(&msg);
     }
 }
