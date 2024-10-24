@@ -7,7 +7,7 @@ use std::{
 
 use anyhow::Result;
 use log::{set_logger, set_max_level, LevelFilter, Log};
-use sd_lib::{print_record, Auth, Message, Mode, ADDRESS};
+use sd_lib::{print_record, Auth, Message, RandomProgramToDaemon, Transmission, ADDRESS};
 
 static mut STREAM: Option<Arc<Mutex<TcpStream>>> = None;
 
@@ -66,7 +66,7 @@ pub fn use_recommended_logger() -> Result<()> {
 
 pub fn close_connection(exitcode: u8) {
     if let Some(stream) = unsafe { STREAM.as_ref() } {
-        Mode::Exit(exitcode)
+        RandomProgramToDaemon::Exit(exitcode)
             .transmit(&mut stream.lock().unwrap())
             .unwrap()
     }
@@ -87,7 +87,7 @@ fn try_connect() {
 
 fn send_auth(auth: Auth) {
     if let Some(stream) = unsafe { STREAM.as_ref() } {
-        Mode::Auth(auth)
+        RandomProgramToDaemon::Auth(auth)
             .transmit(&mut stream.lock().unwrap())
             .unwrap()
     }

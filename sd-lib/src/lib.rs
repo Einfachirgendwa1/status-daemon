@@ -9,7 +9,7 @@ use std::{
 use anyhow::Result;
 use colored::Colorize;
 use log::{debug, error, info, trace, warn, Level};
-use serde::{Deserialize, Serialize};
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 unsafe fn sketchy<A, B: Copy>(a: A) -> B {
     *(&a as *const A as *const B)
@@ -23,17 +23,8 @@ pub struct RecievedMessage {
     pub origin: u32,
 }
 
-#[derive(Serialize, Deserialize)]
-pub enum Mode {
-    Message(Message),
-    RecievedMessage(RecievedMessage),
-    Exit(u8),
-    Auth(Auth),
-    NewClient,
-}
-
-impl Mode {
-    pub fn transmit(&self, stream: &mut TcpStream) -> Result<()> {
+pub trait Transmission: Serialize + DeserializeOwned + Clone {
+    fn transmit(&self, stream: &mut TcpStream) -> Result<()> {
         let message = serde_json::to_string(&self)?;
 
         stream.write(&message.len().to_le_bytes())?;
@@ -42,7 +33,7 @@ impl Mode {
         Ok(())
     }
 
-    pub fn recieve(stream: &mut TcpStream) -> Result<Mode> {
+    fn recieve(stream: &mut TcpStream) -> Result<Self> {
         let mut length = [0; 8];
         if stream.read(&mut length)? == 0 {
             todo!("TcpStream already closed.");
@@ -54,9 +45,25 @@ impl Mode {
             todo!("Error reading from TcpStream.");
         }
 
-        Ok(serde_json::from_str(str::from_utf8(&binary)?)?)
+        Ok(serde_json::from_slice(&binary)?)
     }
 }
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum RandomProgramToDaemon {
+    Message(Message),
+    Exit(u8),
+    Auth(Auth),
+    NewClient,
+}
+
+#[derive(Serialize, Deserialize, Clone)]
+pub enum DaemonToClient {
+    RecievedMessage(RecievedMessage),
+}
+
+impl Transmission for RandomProgramToDaemon {}
+impl Transmission for DaemonToClient {}
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub struct Message {
@@ -84,7 +91,7 @@ impl Message {
     }
 
     pub fn send(self, stream: &mut TcpStream) -> Result<()> {
-        Mode::Message(self).transmit(stream)
+        RandomProgramToDaemon::Message(self).transmit(stream)
     }
 }
 
@@ -94,7 +101,7 @@ impl Display for Message {
     }
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct Auth {
     pub identifier: String,
     pub name: String,

@@ -4,7 +4,7 @@ use gtk::{
     gio::ApplicationFlags, glib::ExitCode, prelude::*, Application, ApplicationWindow, Grid, Label,
     WindowPosition,
 };
-use sd_lib::{Mode, ADDRESS};
+use sd_lib::{DaemonToClient, RandomProgramToDaemon, Transmission, ADDRESS};
 
 fn main() -> ExitCode {
     thread::spawn(daemon_communication);
@@ -51,15 +51,14 @@ fn new_label(content: &str) -> Label {
 fn daemon_communication() {
     let mut stream = TcpStream::connect(ADDRESS).unwrap();
 
-    Mode::NewClient.transmit(&mut stream).unwrap();
+    RandomProgramToDaemon::NewClient
+        .transmit(&mut stream)
+        .unwrap();
 
     loop {
-        match Mode::recieve(&mut stream).unwrap() {
-            Mode::RecievedMessage(message) => {
+        match DaemonToClient::recieve(&mut stream).unwrap() {
+            DaemonToClient::RecievedMessage(message) => {
                 dbg!(&message);
-            }
-            _ => {
-                dbg!("Daemon send an invalid response.");
             }
         }
     }

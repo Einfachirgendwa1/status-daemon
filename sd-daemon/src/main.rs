@@ -12,7 +12,10 @@ use std::{
 use anyhow::Context;
 use clap::{ArgAction, Parser};
 use log::{error, set_logger, set_max_level, warn, Level, Log};
-use sd_lib::{print_record, Message, Mode, RecievedMessage, ADDRESS};
+use sd_lib::{
+    print_record, DaemonToClient, Message, RandomProgramToDaemon, RecievedMessage, Transmission,
+    ADDRESS,
+};
 
 struct Logger {}
 
@@ -81,9 +84,9 @@ fn main() {
         thread::spawn(move || {
             let mut stream = stream.context("Connection failed!").unwrap();
 
-            let auth = match Mode::recieve(&mut stream).unwrap() {
-                Mode::Auth(auth) => auth,
-                Mode::NewClient => {
+            let auth = match RandomProgramToDaemon::recieve(&mut stream).unwrap() {
+                RandomProgramToDaemon::Auth(auth) => auth,
+                RandomProgramToDaemon::NewClient => {
                     write_rx
                         .lock()
                         .unwrap()
@@ -130,17 +133,17 @@ fn main() {
             loop {
                 let save_rx = save_rx.clone();
                 let write_rx = write_rx.clone();
-                let transmission = Mode::recieve(&mut stream).unwrap();
+                let transmission = RandomProgramToDaemon::recieve(&mut stream).unwrap();
 
                 match transmission {
-                    Mode::Message(message) => {
+                    RandomProgramToDaemon::Message(message) => {
                         let recieved_message = RecievedMessage {
                             message,
                             origin: index,
                         };
                         handle_message(recieved_message, save_rx, write_rx);
                     }
-                    Mode::Exit(exitcode) => {
+                    RandomProgramToDaemon::Exit(exitcode) => {
                         let recieved_message = RecievedMessage {
                             message: Message::new(
                                 Level::Info,
@@ -152,7 +155,7 @@ fn main() {
                         stream.shutdown(Shutdown::Both).unwrap();
                         return;
                     }
-                    Mode::Auth(_) => {
+                    RandomProgramToDaemon::Auth(_) => {
                         // https://github.com/rust-lang/rustfmt/issues/3206
                         warn!(
                             "{}{}",
@@ -160,15 +163,12 @@ fn main() {
                             "Only the first transmission should be an Auth message."
                         );
                     }
-                    Mode::NewClient => {
+                    RandomProgramToDaemon::NewClient => {
                         warn!(
                             "{}{}",
                             "Client sent a NewClient message.",
                             "Only the first transmission should be a NewClient message."
                         );
-                    }
-                    Mode::RecievedMessage(_) => {
-                        warn!("??????");
                     }
                 }
             }
@@ -220,7 +220,7 @@ fn write(tx: Receiver<WriteTransmission>) {
             WriteTransmission::NewClient(client) => clients.push(client),
             WriteTransmission::RecievedMessage(recieved_message) => {
                 for mut client in &mut clients {
-                    Mode::RecievedMessage(recieved_message.clone())
+                    DaemonToClient::RecievedMessage(recieved_message.clone())
                         .transmit(&mut client)
                         .unwrap();
                 }
